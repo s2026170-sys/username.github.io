@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
+    <title>東京上空防衛戦 - デバイス最適化版 -</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght=700&family=Oswald:wght=500;700&display=swap');
+
+        body { 
+            margin: 0; overflow: hidden; background-color: #87CEEB; 
+            font-family: 'Noto Serif JP', 'Oswald', sans-serif; 
+            color: #fff; 
+            user-select: none; 
+            touch-action: none;
+            -webkit-user-select: none;
+        }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top:0; left:0; z-index: 1; }
+        
+        /* ホーム（デバイス選択）画面 */
+        #home-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, #112 0%, #335 50%, #87CEEB 100%); 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 100; transition: opacity 0.8s;
+        }
+        .home-title { 
+            font-size: 38px; font-weight: 700; letter-spacing: 4px; margin-bottom: 10px; 
+            text-align: center; color: #cc1111; text-shadow: 2px 2px 0px #fff, -1px -1px 0px #fff;
+        }
+        .home-subtitle {
+            font-size: 16px; color: #fff; text-shadow: 1px 1px 3px #000; letter-spacing: 2px; margin-bottom: 40px; text-align: center;
+        }
+        .device-select-box {
+            display: flex; gap: 30px; max-width: 90%;
+        }
+        .device-card {
+            background: rgba(255, 255, 255, 0.15); border: 3px solid #fff; border-radius: 8px;
+            padding: 25px 35px; text-align: center; cursor: pointer; transition: all 0.3s; width: 160px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+        }
+        .device-card:hover {
+            background: #cc1111; border-color: #fff; transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.5);
+        }
+        .device-card h2 { margin: 0 0 10px 0; font-size: 24px; }
+        .device-card p { margin: 0; font-size: 12px; opacity: 0.9; line-height: 1.5; }
+
+        /* カウントダウン表示 */
+        #countdown-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 90px; font-weight: 700; color: #cc1111; text-shadow: 4px 4px 0px #fff;
+            z-index: 80; pointer-events: none; display: none;
+        }
+
+        /* 画面フラッシュ */
+        #flash-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #ff0000; opacity: 0; pointer-events: none; z-index: 90;
+        }
+
+        /* HUD */
+        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; box-sizing: border-box; opacity: 0; transition: opacity 1s; z-index: 5; }
+        .hud-element { position: absolute; background: rgba(30, 40, 50, 0.85); padding: 12px; border: 2px solid #fff; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        #hud-left { top: 15px; left: 15px; }
+        #hud-right { top: 15px; right: 15px; }
+        
+        #radar-container { bottom: 15px; right: 15px; width: 140px; height: 140px; border: 2px solid #cc1111; background: rgba(240, 240, 230, 0.9); overflow: hidden; }
+        #radar-title { position: absolute; top: 2px; left: 6px; font-size: 10px; color: #cc1111; font-weight: bold;}
+        
+        #hud-center { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        
+        /* 照準器 */
+        .reticle { width: 44px; height: 44px; border: 2px solid rgba(200, 0, 0, 0.6); border-radius: 50%; position: relative; margin: 0 auto; }
+        .reticle::before, .reticle::after { content: ''; position: absolute; background: rgba(200, 0, 0, 0.6); }
+        .reticle::before { top: 21px; left: -8px; width: 60px; height: 2px; }
+        .reticle::after { top: -8px; left: 21px; width: 2px; height: 60px; }
+
+        #alert-msg { margin-top: 15px; font-size: 20px; color: #cc1111; text-shadow: 2px 2px 0px #fff; visibility: hidden; font-weight: bold;}
+        .blink { animation: blink-ani 0.3s infinite alternate; }
+        @keyframes blink-ani { 0% { opacity: 0.2; } 100% { opacity: 1; } }
+
+        /* PC用操作盤 */
+        #pc-control-panel {
+            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; background: rgba(40, 45, 50, 0.9);
+            padding: 10px 20px; border: 2px solid #fff; border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); pointer-events: auto; z-index: 6; display: none;
+        }
+        .ctrl-btn {
+            background: #fff; border: 1px solid #ccc; color: #333;
+            padding: 8px 14px; font-family: 'Noto Serif JP', sans-serif; font-size: 13px; font-weight: bold;
+            cursor: pointer; border-radius: 3px; transition: all 0.2s; min-width: 95px; text-align: center;
+        }
+        .ctrl-btn:hover { background: #cc1111; color: #fff; border-color: #fff; }
+        .btn-desc { font-size: 9px; color: #666; display: block; margin-top: 2px; font-weight: normal; }
+        .ctrl-btn:hover .btn-desc { color: #eee; }
+        #instructions-text { position: absolute; bottom: 85px; left: 50%; transform: translateX(-50%); text-align: center; font-size: 12px; color: #333; font-weight: bold; text-shadow: 1px 1px 0px #fff; }
+
+        /* 🔥 スマホ用ゲームパッド（誤タップ防止・完全セパレート設計） */
+        #mobile-gamepad {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 210px;
+            z-index: 10; pointer-events: none; display: none;
+        }
+        .touch-zone { pointer-events: auto; position: absolute; bottom: 15px; }
+        
+        /* 左手側：移動用十字型配置 */
+        #mobile-left-zone { left: 20px; width: 170px; height: 170px; position: absolute; bottom: 15px; }
+        .pad-btn {
+            position: absolute; width: 54px; height: 54px; background: rgba(255, 255, 255, 0.25);
+            border: 3px solid #fff; border-radius: 50%; color: #fff; font-size: 18px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center; text-shadow: 1px 1px 2px #000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4); active-background: #cc1111;
+        }
+        .pad-btn:active { background: #cc1111; scale: 0.95; }
+        #btn-m-up    { top: 0; left: 58px; }
+        #btn-m-left  { top: 58px; left: 0; }
+        #btn-m-right { top: 58px; right: 0; }
+        #btn-m-down  { bottom: 0; left: 58px; }
+
+        /* 右手側：攻撃＆アクション（誤操作防止スペース確保） */
+        #mobile-right-zone { right: 20px; width: 230px; height: 170px; position: absolute; bottom: 15px; }
+        #btn-m-fire {
+            position: absolute; right: 0; bottom: 10px; width: 95px; height: 95px; 
+            background: #cc1111; border: 4px solid #fff; border-radius: 50%;
+            color: #fff; font-size: 18px; font-weight: bold; display: flex; justify-content: center; 
+            align-items: center; box-shadow: 0 5px 12px rgba(0,0,0,0.5); text-shadow: 1px 1px 2px #000;
+        }
+        #btn-m-fire:active { background: #ff3333; transform: scale(0.92); }
+        
+        /* 特殊機動：発射ボタンから離して誤タップ防止 */
+        .sub-action-btn {
+            position: absolute; width: 56px; height: 44px; background: rgba(40, 45, 50, 0.9);
+            border: 2px solid #fff; border-radius: 6px; color: #fff; font-size: 11px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center; text-align: center;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        }
+        .sub-action-btn:active { background: #cc1111; }
+        #btn-m-roll-l { top: 0; left: 0; }
+        #btn-m-roll-r { top: 0; left: 66px; }
+        #btn-m-brake  { top: 60px; left: 0; }
+        #btn-m-uturn  { top: 60px; left: 66px; }
+
+        /* 勝利画面 */
+        #victory-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(135,206,235,0.95) 80%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 200; opacity: 0; pointer-events: none; transition: opacity 2s ease-in-out;
+        }
+        #victory-title { font-size: 50px; font-weight: 700; color: #cc1111; letter-spacing: 6px; text-shadow: 2px 2px 0px #fff; margin-bottom: 10px; }
+        #victory-subtitle { font-size: 20px; color: #333; letter-spacing: 4px; margin-bottom: 30px; font-weight: bold; }
+        #victory-stats { font-size: 18px; color: #fff; border: 2px solid #cc1111; padding: 12px 35px; background: #cc1111; border-radius: 4px; font-weight: bold; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="home-screen">
+        <div class="home-title">東京上空防衛戦</div>
+        <div class="home-subtitle">昭和ノスタルジー戦闘シミュレータ (敵AI極限強化版)</div>
+        <div class="device-select-box">
+            <div class="device-card" id="choose-pc">
+                <h2>PC版</h2>
+                <p>キーボードとマウスで操作<br>(W/A/S/D・矢印・Q/E/R/F)</p>
+            </div>
+            <div class="device-card" id="choose-mobile">
+                <h2>スマホ版</h2>
+                <p>画面上の専用ゲームパッドで操作<br>(誤タップ防止レイアウト)</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="countdown-overlay">3</div>
+    <div id="flash-overlay"></div>
+
+    <div id="victory-screen">
+        <div id="victory-title">作戦完了</div>
+        <div id="victory-subtitle">帝都の空は守られた</div>
+        <div id="victory-stats">撃破した敵円盤数: <span id="final-kills">0</span> 機</div>
+    </div>
+
+    <div id="canvas-container"></div>
+    
+    <div id="pc-control-panel">
+        <button class="ctrl-btn" id="btn-roll-l">左旋回ロール<span class="btn-desc">キー: Q</span></button>
+        <button class="ctrl-btn" id="btn-roll-r">右旋回ロール<span class="btn-desc">キー: E</span></button>
+        <button class="ctrl-btn" id="btn-brake">急減速（制動）<span class="btn-desc">キー: R</span></button>
+        <button class="ctrl-btn" id="btn-u-turn">180度反転<span class="btn-desc">キー: F</span></button>
+        <button class="ctrl-btn" id="btn-fire" style="background:#cc1111; color:#fff; border-color:#fff;">機銃発射<span class="btn-desc" style="color:#eee;">スペース / クリック</span></button>
+    </div>
+
+    <div id="mobile-gamepad">
+        <div id="mobile-left-zone" class="touch-zone">
+            <div class="pad-btn" id="btn-m-up">▲</div>
+            <div class="pad-btn" id="btn-m-left">◀</div>
+            <div class="pad-btn" id="btn-m-right">▶</div>
+            <div class="pad-btn" id="btn-m-down">▼</div>
+        </div>
+        <div id="mobile-right-zone" class="touch-zone">
+            <div class="sub-action-btn" id="btn-m-roll-l">左ロール</div>
+            <div class="sub-action-btn" id="btn-m-roll-r">右ロール</div>
+            <div class="sub-action-btn" id="btn-m-brake">急制動</div>
+            <div class="sub-action-btn" id="btn-m-uturn">180反転</div>
+            <div id="btn-m-fire">機銃<br>発射</div>
+        </div>
+    </div>
+
+    <div id="hud">
+        <div id="instructions-text"></div>
+        <div id="hud-left" class="hud-element">
+            <div style="font-size: 13px; border-bottom: 2px solid #fff; padding-bottom: 3px; font-weight: bold;">機体状況</div>
+            <div style="margin-top: 6px; font-size: 16px; font-weight: bold; color: #cc1111; text-shadow: 1px 1px 0 #fff;">残機: <span id="player-stocks">-</span></div>
+            <div style="margin-top: 3px; color: #ddd; font-size: 12px;">速度: <span id="player-speed">0</span> 節</div>
+            <div id="boundary-alert" style="color: #ff3333; font-weight: bold; margin-top: 5px; display: none; font-size:12px;">警告: 領空外</div>
+        </div>
+        <div id="hud-right" class="hud-element">
+            <div style="font-size: 13px; border-bottom: 2px solid #fff; padding-bottom: 3px; font-weight: bold;">戦況</div>
+            <div style="color:#77ff77; font-weight: bold; font-size:12px;">味方: <span id="ally-count">0</span></div>
+            <div style="color:#ff7777; font-weight: bold; font-size:12px;">敵軍: <span id="enemy-count">0</span></div>
+            <div style="margin-top: 4px; border-top: 1px dashed #fff; padding-top: 3px; font-size:12px;">撃破数: <span id="kill-count">0</span></div>
+            <div id="game-result" style="margin-top:4px; font-size: 13px; font-weight:bold;"></div>
+        </div>
+        
+        <div id="radar-container" class="hud-element">
+            <div id="radar-title">空域地図</div>
+        </div>
+        
+        <div id="hud-center"><div class="reticle"></div><div id="alert-msg"></div></div>
+    </div>
+
+    <script>
+        let gameActive = false;
+        let countdownActive = false; 
+        let isVictoryTriggered = false;
+        let selectedDevice = 'pc'; // 'pc' か 'mobile'
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.002); 
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+        scene.add(camera);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        const MAP_LIMIT = 500; 
+
+        // --- 固定マップレーダーの設定 ---
+        const radarContainer = document.getElementById('radar-container');
+        const radarScene = new THREE.Scene();
+        const radarCamera = new THREE.PerspectiveCamera(60, 1, 1, 1000);
+        radarCamera.position.set(0, 170, 0); 
+        radarCamera.lookAt(0, 0, 0);
+        
+        const radarRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        radarRenderer.setSize(140, 140); 
+        radarContainer.appendChild(radarRenderer.domElement);
+
+        const radarBase = new THREE.Group();
+        radarScene.add(radarBase);
+
+        const centerGrid = new THREE.GridHelper(120, 8, 0xcc1111, 0x999999);
+        radarBase.add(centerGrid);
+
+        const playerMarker = new THREE.Mesh(
+            new THREE.ConeGeometry(3, 9, 4).rotateX(Math.PI / 2), 
+            new THREE.MeshBasicMaterial({ color: 0x0000ff }) 
+        );
+        radarBase.add(playerMarker);
+
+        // --- ライティング ---
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.3);
+        sunLight.position.set(100, 300, 50).normalize();
+        scene.add(sunLight);
+        scene.add(new THREE.AmbientLight(0x778899, 0.8));
+
+        // --- 背景の雲 ---
+        function createClouds() {
+            const cloudGroup = new THREE.Group();
+            const geo = new THREE.DodecahedronGeometry(30, 1);
+            const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+            for(let i=0; i<40; i++) {
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set((Math.random()-0.5)*2000, 150 + Math.random()*100, (Math.random()-0.5)*2000);
+                mesh.scale.set(2 + Math.random()*2, 0.5 + Math.random()*0.5, 1 + Math.random()*2);
+                cloudGroup.add(mesh);
+            }
+            scene.add(cloudGroup);
+        }
+        createClouds();
+
+        // --- 建造物の配置群 ---
+        const obstacleGroup = new THREE.Group();
+        scene.add(obstacleGroup);
+        let collidableObjects = [];
+
+        function createMountFuji() {
+            const fujiGroup = new THREE.Group();
+            const mountainGeo = new THREE.CylinderGeometry(5, 400, 300, 32, 1, true);
+            const mountainMat = new THREE.MeshLambertMaterial({ color: 0x3b4d61 });
+            const mountain = new THREE.Mesh(mountainGeo, mountainMat);
+            fujiGroup.add(mountain);
+
+            const snowGeo = new THREE.CylinderGeometry(6, 90, 70, 32, 1, true);
+            const snowMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const snow = new THREE.Mesh(snowGeo, snowMat);
+            snow.position.y = 115;
+            fujiGroup.add(snow);
+
+            fujiGroup.position.set(0, 50, -1200); 
+            scene.add(fujiGroup);
+        }
+        createMountFuji();
+
+        function createTokyoTower() {
+            const tower = new THREE.Group();
+            const towerMat = new THREE.MeshLambertMaterial({ color: 0xe64a19 }); 
+            const whiteMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            for(let i = 0; i < 6; i++) {
+                const h = 25; const topR = 12 - i*2; const botR = 18 - i*2;
+                const geo = new THREE.CylinderGeometry(topR, botR, h, 4, 1, true);
+                const segment = new THREE.Mesh(geo, (i % 2 === 0) ? towerMat : whiteMat);
+                segment.position.y = -50 + (i * h) + h/2; tower.add(segment);
+            }
+            const obsGeo = new THREE.CylinderGeometry(8, 7, 8, 8);
+            const obs = new THREE.Mesh(obsGeo, new THREE.MeshLambertMaterial({ color: 0x333333 }));
+            obs.position.y = 104; tower.add(obs);
+            const antGeo = new THREE.CylinderGeometry(1, 2, 50, 4);
+            const ant = new THREE.Mesh(antGeo, towerMat);
+            ant.position.y = 133; tower.add(ant);
+            return tower;
+        }
+        const tokyoTower = createTokyoTower();
+        tokyoTower.position.set(0, -20, 0); obstacleGroup.add(tokyoTower);
+        collidableObjects.push({ type: 'cylinder', x: 0, z: 0, radius: 22, maxY: 140 });
+
+        // 市街地ビル群
+        const showaColors = [0x7c7c7c, 0x5a504a, 0x8b8589, 0x4a535a];
+        for (let i = 0; i < 55; i++) {
+            const bWidth = 20 + Math.random() * 20; const bHeight = 30 + Math.random() * 60; const bDepth = 20 + Math.random() * 20;
+            const building = new THREE.Mesh(new THREE.BoxGeometry(bWidth, bHeight, bDepth), new THREE.MeshLambertMaterial({ color: showaColors[Math.floor(Math.random() * showaColors.length)] }));
+            const angle = Math.random() * Math.PI * 2; const radius = 100 + Math.random() * 250;
+            const posX = Math.cos(angle) * radius; const posZ = Math.sin(angle) * radius; const posY = -80 + bHeight/2;
+            building.position.set(posX, posY, posZ); obstacleGroup.add(building);
+            collidableObjects.push({ type: 'box', minX: posX - bWidth/2 - 2, maxX: posX + bWidth/2 + 2, minZ: posZ - bDepth/2 - 2, maxZ: posZ + bDepth/2 + 2, maxY: posY + bHeight/2 });
+        }
+
+        // 高架橋 & 新幹線
+        function createHighway() {
+            const highwayGroup = new THREE.Group(); const points = [];
+            for (let i = 0; i <= 20; i++) { const angle = (i / 20) * Math.PI * 2; const r = 200 + Math.sin(i * 2) * 30; points.push(new THREE.Vector3(Math.cos(angle) * r, -45, Math.sin(angle) * r)); }
+            const tubeGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 64, 12, 4, true);
+            highwayGroup.add(new THREE.Mesh(tubeGeo, new THREE.MeshLambertMaterial({ color: 0x888888 })));
+            return { group: highwayGroup, points };
+        }
+        const highwayData = createHighway(); obstacleGroup.add(highwayData.group);
+
+        const shinkansen = new THREE.Group();
+        shinkansen.add(new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 16, 8).rotateX(Math.PI/2), new THREE.MeshLambertMaterial({ color: 0xeeeeee })));
+        shinkansen.position.copy(highwayData.points[0]); obstacleGroup.add(shinkansen);
+        let trainProgress = 0;
+
+        // --- 機銃 ---
+        const cannonBaseGroup = new THREE.Group();
+        camera.add(cannonBaseGroup);
+        const cannonOffsets = [{x: -3, y: -1.5, z: -4}, {x: 3, y: -1.5, z: -4}];
+        cannonOffsets.forEach(offset => {
+            const cMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 4, 8).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+            cMesh.position.set(offset.x, offset.y, offset.z); cannonBaseGroup.add(cMesh);
+        });
+
+        // プレイヤー設定
+        let player = { 
+            baseSpeed: 1.6, speed: 1.6, stocks: 3, kills: 0, rotX: 0, rotY: 0, rotZ: 0,
+            maneuverType: null, maneuverTimer: 0, invulnerableTimer: 0, lastPosition: new THREE.Vector3()
+        };
+        
+        function resetPlayerPosition() {
+            camera.position.set((Math.random() - 0.5) * 100, 80, 260); camera.rotation.set(0, 0, 0);
+            player.lastPosition.copy(camera.position);
+            player.rotX = 0; player.rotY = 0; player.rotZ = 0; player.maneuverType = null; player.speed = player.baseSpeed; player.invulnerableTimer = 60; 
+        }
+        resetPlayerPosition();
+
+        // --- 零戦 & 円盤モデル生成 ---
+        function createZeroFighter() {
+            const group = new THREE.Group(); const mat = new THREE.MeshLambertMaterial({ color: 0x2d3d30 });
+            group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.8, 12, 8).rotateX(Math.PI/2), mat));
+            const wings = new THREE.Mesh(new THREE.BoxGeometry(14, 0.15, 2.5), mat); wings.position.set(0, -0.2, -1); group.add(wings);
+            group.scale.set(1.5, 1.5, 1.5); return group;
+        }
+        function createUfoDisc() {
+            const group = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8, roughness: 0.2 });
+            group.add(new THREE.Mesh(new THREE.CylinderGeometry(6, 7, 1.5, 12), mat));
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(3, 12, 12, 0, Math.PI*2, 0, Math.PI/2), mat); dome.position.y = 0.5; group.add(dome);
+            group.scale.set(1.5, 1.5, 1.5); return group;
+        }
+
+        let allies = [], enemies = [];
+        const ENEMY_COUNT = 6; const ALLY_COUNT = 3; const dotGeo = new THREE.SphereGeometry(3.5, 8, 8);
+
+        function spawnUnit(team) {
+            const isAlly = (team === 'ALLY'); const mesh = isAlly ? createZeroFighter() : createUfoDisc();
+            mesh.position.set((Math.random() - 0.5) * 300, 30 + Math.random() * 70, isAlly ? (200 + Math.random() * 60) : (-200 - Math.random() * 60));
+            scene.add(mesh);
+            const dot = new THREE.Mesh(dotGeo, new THREE.MeshBasicMaterial({ color: isAlly ? 0x00ff00 : 0xff0000 })); radarBase.add(dot);
+            const unit = { mesh, radarDot: dot, team, hp: isAlly ? 70 : 100, speed: isAlly ? 1.3 : 1.7, cooldown: Math.random() * 20, target: null, velocity: new THREE.Vector3(), evadeTimer: 0, evadeDir: new THREE.Vector3() };
+            if (isAlly) allies.push(unit); else enemies.push(unit);
+        }
+        for(let i=0; i<ALLY_COUNT; i++) spawnUnit('ALLY');
+        for(let i=0; i<ENEMY_COUNT; i++) spawnUnit('ENEMY');
+
+        let lasers = [], particles = [];
+
+        function triggerPlayerFire() {
+            if(!gameActive || countdownActive || player.stocks <= 0 || isVictoryTriggered) return; 
+            const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+            
+            cannonOffsets.forEach(offset => {
+                const lMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 20, 4).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+                const muzzleLocal = new THREE.Vector3(offset.x, offset.y, offset.z - 2);
+                const muzzleWorld = muzzleLocal.applyMatrix4(cannonBaseGroup.matrixWorld);
+                lMesh.position.copy(muzzleWorld);
+                lMesh.quaternion.copy(cannonBaseGroup.quaternion.clone().premultiply(camera.quaternion)); 
+                scene.add(lMesh);
+                const laserDir = new THREE.Vector3(0, 0, -1).applyQuaternion(cannonBaseGroup.quaternion).applyQuaternion(camera.quaternion).normalize();
+                lasers.push({ mesh: lMesh, direction: laserDir, life: 50, isPlayer: true, sourceTeam: 'ALLY' });
+            });
+            enemies.forEach(e => { if (e.mesh.position.distanceTo(camera.position) < 250 && Math.random() < 0.5) triggerEnemyEvade(e); });
+        }
+
+        function fireLaser(sourceMesh, direction, color) {
+            if(isVictoryTriggered) return;
+            const lMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 20, 4).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: color }));
+            lMesh.position.copy(sourceMesh.position); lMesh.lookAt(sourceMesh.position.clone().add(direction)); scene.add(lMesh);
+            lasers.push({ mesh: lMesh, direction: direction.clone().normalize(), life: 50, isPlayer: false, sourceTeam: 'ENEMY' });
+        }
+
+        function triggerEnemyEvade(enemy) {
+            if (enemy.evadeTimer > 0) return; enemy.evadeTimer = 25; 
+            enemy.evadeDir.copy(new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, 0).normalize().multiplyScalar(2.2));
+        }
+
+        function triggerFlash() {
+            const flash = document.getElementById('flash-overlay'); flash.style.opacity = '0.6'; let op = 0.6;
+            const t = setInterval(() => { op -= 0.1; if(op <= 0) { flash.style.opacity = '0'; clearInterval(t); } else { flash.style.opacity = op; } }, 40);
+        }
+
+        function createExplosion(pos, color, count=40) {
+            for(let i=0; i<count; i++) {
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), new THREE.MeshBasicMaterial({ color: color })); mesh.position.copy(pos); scene.add(mesh);
+                particles.push({ mesh: mesh, v: new THREE.Vector3((Math.random()-0.5)*8, (Math.random()-0.5)*8, (Math.random()-0.5)*8), life: 25 });
+            }
+        }
+
+        function triggerManeuver(type) {
+            if (!gameActive || countdownActive || player.stocks <= 0 || isVictoryTriggered || player.maneuverType !== null) return;
+            player.maneuverType = type;
+            if (type === 'ROLL_L' || type === 'ROLL_R') player.maneuverTimer = 25; 
+            if (type === 'BRAKE') player.maneuverTimer = 30;
+            if (type === 'UTURN') player.maneuverTimer = 20;
+        }
+
+        // --- 🕹️ 入力システム（PC・スマホ分離） ---
+        let keys = {};
+        let mobileControls = { up: false, down: false, left: false, right: false };
+
+        // PCキーボードイベント
+        window.addEventListener('keydown', (e) => { 
+            if(!gameActive || countdownActive || isVictoryTriggered || selectedDevice !== 'pc') return; keys[e.code] = true; 
+            if(e.code === 'Space') { triggerPlayerFire(); e.preventDefault(); }
+            if(e.code === 'KeyQ') triggerManeuver('ROLL_L');
+            if(e.code === 'KeyE') triggerManeuver('ROLL_R');
+            if(e.code === 'KeyR') triggerManeuver('BRAKE');
+            if(e.code === 'KeyF') triggerManeuver('UTURN');
+        });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+        window.addEventListener('click', (e) => {
+            if (selectedDevice === 'pc' && gameActive && !countdownActive && !e.target.closest('#pc-control-panel')) triggerPlayerFire();
+        });
+
+        // スマホタッチイベント登録関数（誤動作を完全防止するためpreventDefault適用）
+        function bindMobileBtn(id, startAction, endAction = null) {
+            const btn = document.getElementById(id);
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); startAction(); }, { passive: false });
+            if (endAction) {
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); endAction(); }, { passive: false });
+                btn.addEventListener('touchcancel', (e) => { e.preventDefault(); endAction(); }, { passive: false });
+            }
+        }
+
+        // スマホ用ゲームパッドの割り当て
+        bindMobileBtn('btn-m-up',    () => mobileControls.up = true,    () => mobileControls.down = false || (mobileControls.up = false));
+        bindMobileBtn('btn-m-down',  () => mobileControls.down = true,  () => mobileControls.up = false || (mobileControls.down = false));
+        bindMobileBtn('btn-m-left',  () => mobileControls.left = true,  () => mobileControls.right = false || (mobileControls.left = false));
+        bindMobileBtn('btn-m-right', () => mobileControls.right = true, () => mobileControls.left = false || (mobileControls.right = false));
+        
+        bindMobileBtn('btn-m-fire',   () => triggerPlayerFire());
+        bindMobileBtn('btn-m-roll-l', () => triggerManeuver('ROLL_L'));
+        bindMobileBtn('btn-m-roll-r', () => triggerManeuver('ROLL_R'));
+        bindMobileBtn('btn-m-brake',  () => triggerManeuver('BRAKE'));
+        bindMobileBtn('btn-m-uturn',  () => triggerManeuver('UTURN'));
+
+        // PCパネル側ボタン（一応マウスでも動作保障）
+        document.getElementById('btn-roll-l').addEventListener('click', () => triggerManeuver('ROLL_L'));
+        document.getElementById('btn-roll-r').addEventListener('click', () => triggerManeuver('ROLL_R'));
+        document.getElementById('btn-brake').addEventListener('click', () => triggerManeuver('BRAKE'));
+        document.getElementById('btn-u-turn').addEventListener('click', () => triggerManeuver('UTURN'));
+        document.getElementById('btn-fire').addEventListener('click', () => triggerPlayerFire());
+
+        // --- 🏠 ホーム画面のデバイス選択処理 ---
+        function startGame(device) {
+            selectedDevice = device;
+            document.getElementById('home-screen').style.opacity = '0';
+            setTimeout(() => { document.getElementById('home-screen').style.display = 'none'; }, 800);
+            
+            document.getElementById('hud').style.opacity = '1';
+            
+            // UIレイアウトの切り替え
+            if (device === 'pc') {
+                document.getElementById('pc-control-panel').style.display = 'flex';
+                document.getElementById('instructions-text').innerText = "移動: 矢印キー または W/A/S/D | 特殊機動: Q/E/R/F キー | 発射: スペース";
+            } else {
+                document.getElementById('mobile-gamepad').style.display = 'block';
+                document.getElementById('instructions-text').innerText = "画面上のボタンをタップして操縦・攻撃をおこなってください";
+                document.getElementById('instructions-text').style.bottom = "190px"; 
+            }
+            
+            countdownActive = true;
+            const cdOverlay = document.getElementById('countdown-overlay');
+            cdOverlay.style.display = 'block';
+            let count = 3; cdOverlay.innerText = count;
+
+            const interval = setInterval(() => {
+                count--;
+                if (count > 0) { cdOverlay.innerText = count; } 
+                else if (count === 0) { cdOverlay.innerText = "開戦!!"; countdownActive = false; gameActive = true; } 
+                else { clearInterval(interval); cdOverlay.style.display = 'none'; }
+            }, 1000);
+        }
+
+        document.getElementById('choose-pc').addEventListener('click', () => startGame('pc'));
+        document.getElementById('choose-mobile').addEventListener('click', () => startGame('mobile'));
+
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+
+        // --- AI制御 (未来予測追跡 & 超高速旋回) ---
+        function updateAI(unit, enemyList) {
+            if (unit.mesh.position.length() > MAP_LIMIT - 30) {
+                const toCenter = new THREE.Vector3().copy(unit.mesh.position).negate().normalize();
+                unit.velocity.lerp(toCenter.multiplyScalar(unit.speed * 1.2), 0.1);
+                unit.mesh.position.add(unit.velocity); unit.mesh.lookAt(unit.mesh.position.clone().add(unit.velocity)); return;
+            }
+            if (unit.team === 'ENEMY') { if (player.stocks > 0) unit.target = camera; else if (enemyList.length > 0) unit.target = enemyList[Math.floor(Math.random() * enemyList.length)].mesh; }
+            else { if (!unit.target || unit.target.hp <= 0) { if (enemyList.length > 0) unit.target = enemyList[Math.floor(Math.random() * enemyList.length)].mesh; } }
+
+            if (unit.target) {
+                const targetPos = unit.target.position ? unit.target.position : unit.target;
+                let predictedTarget = targetPos.clone();
+                if (unit.team === 'ENEMY' && unit.target === camera) {
+                    const playerVel = new THREE.Vector3().subVectors(camera.position, player.lastPosition);
+                    predictedTarget.addScaledVector(playerVel, 15); 
+                }
+                let turnSpeed = unit.team === 'ENEMY' ? 0.05 : 0.04; 
+                const targetRotation = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(unit.mesh.position, predictedTarget, new THREE.Vector3(0, 1, 0)));
+                unit.mesh.quaternion.slerp(targetRotation, turnSpeed);
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(unit.mesh.quaternion);
+                unit.mesh.position.addScaledVector(forward, unit.speed);
+
+                if (unit.team === 'ENEMY') {
+                    unit.mesh.rotateY(0.06); if (unit.evadeTimer > 0) { unit.evadeTimer--; unit.mesh.position.add(unit.evadeDir.clone().applyQuaternion(unit.mesh.quaternion)); }
+                }
+                if (unit.mesh.position.distanceTo(targetPos) < 320) {
+                    unit.cooldown--;
+                    if (unit.cooldown <= 0) { fireLaser(unit.mesh, forward, unit.team === 'ALLY' ? 0xffaa00 : 0xff3300); unit.cooldown = unit.team === 'ALLY' ? (25 + Math.random() * 20) : (15 + Math.random() * 10); }
+                }
+            }
+        }
+
+        function checkBuildingCollision(pos) {
+            if (pos.y < -45) return true;
+            for (let obj of collidableObjects) {
+                if (obj.type === 'box') { if (pos.x >= obj.minX && pos.x <= obj.maxX && pos.z >= obj.minZ && pos.z <= obj.maxZ && pos.y <= obj.maxY) return true; }
+                else if (obj.type === 'cylinder') { const dx = pos.x - obj.x; const dz = pos.z - obj.z; if (dx*dx + dz*dz <= obj.radius * obj.radius && pos.y <= obj.maxY) return true; }
+            }
+            return false;
+        }
+
+        function handlePlayerDeath(reasonText) {
+            player.stocks--; triggerFlash(); createExplosion(camera.position, 0xff3300, 60);
+            if (player.stocks <= 0) {
+                document.getElementById('player-stocks').innerText = "撃沈 (0 ストック)"; document.getElementById('game-result').innerText = "防衛失敗: 帝都陥落"; document.getElementById('game-result').style.color = "#ff3333";
+            } else {
+                document.getElementById('alert-msg').innerText = reasonText; document.getElementById('alert-msg').className = "blink"; document.getElementById('alert-msg').style.visibility = 'visible';
+                setTimeout(() => { document.getElementById('alert-msg').style.visibility = 'hidden'; }, 2000); resetPlayerPosition();
+            }
+        }
+
+        // --- メインループ ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (highwayData.points.length > 0) {
+                trainProgress += 0.001; if (trainProgress > 1) trainProgress = 0;
+                const currIdx = Math.floor(trainProgress * (highwayData.points.length - 1)); const nextIdx = (currIdx + 1) % highwayData.points.length;
+                shinkansen.position.lerpVectors(highwayData.points[currIdx], highwayData.points[nextIdx], (trainProgress * (highwayData.points.length - 1)) % 1);
+                shinkansen.lookAt(highwayData.points[nextIdx]); shinkansen.position.y += 2; 
+            }
+
+            let isUnderAttack = false;
+            if (player.invulnerableTimer > 0) player.invulnerableTimer--;
+
+            if (gameActive && !countdownActive && player.stocks > 0) {
+                if (isVictoryTriggered) {
+                    player.rotX = 0.003; player.rotY = 0.005; player.rotZ = 0.003;
+                    camera.rotateX(player.rotX); camera.rotateY(player.rotY); camera.rotateZ(player.rotZ);
+                    camera.position.addScaledVector(new THREE.Vector3(), 0.7);
+                } else {
+                    if (player.maneuverType !== null) {
+                        player.maneuverTimer--;
+                        if (player.maneuverType === 'ROLL_L') { camera.rotateZ(0.22); camera.position.addScaledVector(new THREE.Vector3(-0.7, 0, -1.1).applyQuaternion(camera.quaternion).normalize(), player.baseSpeed * 1.6); } 
+                        else if (player.maneuverType === 'ROLL_R') { camera.rotateZ(-0.22); camera.position.addScaledVector(new THREE.Vector3(0.7, 0, -1.1).applyQuaternion(camera.quaternion).normalize(), player.baseSpeed * 1.6); } 
+                        else if (player.maneuverType === 'BRAKE') { player.speed = player.baseSpeed * 0.2; camera.rotateX(0.03); const f = new THREE.Vector3(); camera.getWorldDirection(f); camera.position.addScaledVector(f, player.speed); } 
+                        else if (player.maneuverType === 'UTURN') { camera.rotateX(0.15); const f = new THREE.Vector3(); camera.getWorldDirection(f); camera.position.addScaledVector(f, player.baseSpeed * 1.1); }
+                        if (player.maneuverTimer <= 0) { player.maneuverType = null; player.speed = player.baseSpeed; }
+                    } else {
+                        player.rotX *= 0.85; player.rotY *= 0.85; player.rotZ *= 0.85;
+                        
+                        // 入力ソースの判定（PC or スマホ）
+                        if (selectedDevice === 'pc') {
+                            if (keys['ArrowUp'] || keys['KeyW'])    player.rotX = 0.03;
+                            if (keys['ArrowDown'] || keys['KeyS'])  player.rotX = -0.03;
+                            if (keys['ArrowLeft'] || keys['KeyA'])  { player.rotZ = 0.04; player.rotY = 0.015; }
+                            if (keys['ArrowRight'] || keys['KeyD']) { player.rotZ = -0.04; player.rotY = -0.015; }
+                        } else {
+                            if (mobileControls.up)    player.rotX = 0.03;
+                            if (mobileControls.down)  player.rotX = -0.03;
+                            if (mobileControls.left)  { player.rotZ = 0.04; player.rotY = 0.015; }
+                            if (mobileControls.right) { player.rotZ = -0.04; player.rotY = -0.015; }
+                        }
+
+                        camera.rotateX(player.rotX); camera.rotateY(player.rotY); camera.rotateZ(player.rotZ);
+                        player.lastPosition.copy(camera.position);
+                        const forward = new THREE.Vector3(); camera.getWorldDirection(forward);
+                        camera.position.addScaledVector(forward, player.speed);
+
+                        cannonBaseGroup.rotation.x += (-player.rotX * 4.0 - cannonBaseGroup.rotation.x) * 0.1;
+                        cannonBaseGroup.rotation.y += (-player.rotY * 4.0 - cannonBaseGroup.rotation.y) * 0.1;
+                    }
+
+                    if (player.invulnerableTimer <= 0 && checkBuildingCollision(camera.position)) handlePlayerDeath("建物・地表に衝突！");
+                    const dist = camera.position.length();
+                    if (dist > MAP_LIMIT) { camera.position.setLength(MAP_LIMIT); document.getElementById('boundary-alert').style.display = 'block'; }
+                    else if (dist > MAP_LIMIT - 50) document.getElementById('boundary-alert').style.display = 'block';
+                    else document.getElementById('boundary-alert').style.display = 'none';
+                }
+            }
+
+            // AI/戦闘判定更新
+            if (gameActive && !countdownActive) {
+                for(let i = allies.length - 1; i >= 0; i--) {
+                    const a = allies[i]; if (a.hp <= 0) { createExplosion(a.mesh.position, 0x55aa55, 30); scene.remove(a.mesh); radarBase.remove(a.radarDot); allies.splice(i, 1); continue; }
+                    if (!isVictoryTriggered) updateAI(a, enemies);
+                }
+                for(let i = enemies.length - 1; i >= 0; i--) {
+                    const e = enemies[i]; if (e.hp <= 0) { createExplosion(e.mesh.position, 0xff3300, 50); scene.remove(e.mesh); radarBase.remove(e.radarDot); enemies.splice(i, 1); continue; }
+                    if (!isVictoryTriggered) updateAI(e, allies);
+                    if (player.stocks > 0 && !isVictoryTriggered) {
+                        const toPlayer = new THREE.Vector3().subVectors(camera.position, e.mesh.position);
+                        if (new THREE.Vector3(0,0,-1).applyQuaternion(e.mesh.quaternion).normalize().angleTo(toPlayer.normalize()) < 0.22 && toPlayer.length() < 280) isUnderAttack = true;
+                    }
+                }
+
+                if (isUnderAttack && !isVictoryTriggered && player.stocks > 0) {
+                    document.getElementById('alert-msg').innerText = "警告: 敵円盤にロックオンされている"; document.getElementById('alert-msg').className = "blink"; document.getElementById('alert-msg').style.visibility = 'visible';
+                } else if (player.invulnerableTimer <= 0) { document.getElementById('alert-msg').style.visibility = 'hidden'; }
+
+                // 弾丸処理
+                for(let i = lasers.length - 1; i >= 0; i--) {
+                    const l = lasers[i]; l.mesh.position.addScaledVector(l.direction, 14); l.life--; let hit = false;
+                    if (l.sourceTeam === 'ENEMY') {
+                        if (player.stocks > 0 && player.invulnerableTimer <= 0 && l.mesh.position.distanceTo(camera.position) < 10) { hit = true; handlePlayerDeath("被弾大破！"); }
+                        for(let a of allies) { if (l.mesh.position.distanceTo(a.mesh.position) < 10) { a.hp -= 25; createExplosion(l.mesh.position, 0xff3300, 8); hit = true; break; } }
+                    } else {
+                        for(let e of enemies) { 
+                            if (l.mesh.position.distanceTo(e.mesh.position) < 15) { e.hp -= 34; createExplosion(l.mesh.position, 0xffaa00, 10); if(e.hp <= 0 && l.isPlayer) player.kills++; hit = true; break; } 
+                            else if (l.isPlayer && l.mesh.position.distanceTo(e.mesh.position) < 40 && Math.random() < 0.4) { triggerEnemyEvade(e); }
+                        }
+                    }
+                    if(l.life <= 0 || hit) { scene.remove(l.mesh); lasers.splice(i, 1); }
+                }
+                for(let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.mesh.position.add(p.v); p.life--; if(p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); } }
+            }
+
+            // レーダー更新
+            const RADAR_SCALE = 60 / MAP_LIMIT;
+            playerMarker.position.set(camera.position.x * RADAR_SCALE, 0, camera.position.z * RADAR_SCALE); playerMarker.rotation.y = camera.rotation.y;
+            for(let a of allies) { a.radarDot.position.set(a.mesh.position.x * RADAR_SCALE, 0, a.mesh.position.z * RADAR_SCALE); a.radarDot.visible = (Math.abs(a.radarDot.position.x) < 60 && Math.abs(a.radarDot.position.z) < 60); }
+            for(let e of enemies) { e.radarDot.position.set(e.mesh.position.x * RADAR_SCALE, 0, e.mesh.position.z * RADAR_SCALE); e.radarDot.visible = (Math.abs(e.radarDot.position.x) < 60 && Math.abs(e.radarDot.position.z) < 60); }
+
+            // HUDテキスト同期
+            if (gameActive) {
+                if (player.stocks === 3) document.getElementById('player-stocks').innerText = "親機 + 2 (計3ストック)";
+                else if (player.stocks === 2) document.getElementById('player-stocks').innerText = "予備機1 (計2ストック)";
+                else if (player.stocks === 1) document.getElementById('player-stocks').innerText = "最後の一機！";
+                
+                let displaySpeed = countdownActive ? 0 : player.speed;
+                if (player.maneuverType === 'ROLL_L' || player.maneuverType === 'ROLL_R') displaySpeed = player.baseSpeed * 1.6;
+                document.getElementById('player-speed').innerText = Math.round(displaySpeed * 95); 
+                document.getElementById('ally-count').innerText = allies.length; document.getElementById('enemy-count').innerText = enemies.length;
+                document.getElementById('kill-count').innerText = player.kills;
+                
+                if (enemies.length === 0 && !isVictoryTriggered && player.stocks > 0) {
+                    isVictoryTriggered = true;
+                    document.getElementById('hud').style.opacity = '0';
+                    if(selectedDevice === 'pc') document.getElementById('pc-control-panel').style.opacity = '0';
+                    else document.getElementById('mobile-gamepad').style.display = 'none';
+                    document.getElementById('final-kills').innerText = player.kills;
+                    document.getElementById('victory-screen').style.opacity = '1';
+                }
+            }
+
+            renderer.render(scene, camera);
+            radarRenderer.render(radarScene, radarCamera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
